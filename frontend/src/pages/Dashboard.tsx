@@ -92,7 +92,7 @@ const Dashboard = () => {
     return (
         <>
         <Navbar></Navbar>
-        <div className="pt-20 relative overflow-x-auto shadow-md sm:rounded-lg">
+        <div className="pt-20 fixed top-10 right-30 left-30 overflow-x-auto shadow-md sm:rounded-lg">
             <div className="relative overflow-x-auto shadow-md sm:rounded-lg">
                 <div className="p-4 flex justify-between items-center">
                     <div className="flex items-center">
@@ -139,7 +139,19 @@ const Dashboard = () => {
                         </tr>
                     </thead>
                     <tbody>
-                        {rows.map(row => (
+                        {rows.length == 0 ? (
+                            <tr>
+                                <td colSpan={6} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+                                    <div className="space-y-2">
+                                        <p className="text-lg font-semibold">No applications found.</p>
+                                        <p className="text-sm">
+                                            Go apply to jobs and upload screenshots of your applications to start tracking them here!
+                                        </p>
+                                    </div>
+                                </td>
+                            </tr>
+                        ) : (
+                                rows.map(row => (
                             <tr key={row.id} className="odd:bg-white odd:dark:bg-gray-900 even:bg-gray-50 even:dark:bg-gray-800 border-b dark:border-gray-700 border-gray-200">
                                 <td className="px-6 py-4">
                                     <input
@@ -180,7 +192,8 @@ const Dashboard = () => {
                                     </button>
                                 </td>
                             </tr>
-                        ))}
+                        ))
+                            )}
                     </tbody>
                 </table>
             </div>
