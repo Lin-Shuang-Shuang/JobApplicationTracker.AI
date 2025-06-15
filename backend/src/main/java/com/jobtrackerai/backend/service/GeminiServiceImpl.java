@@ -12,6 +12,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.io.Resource;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -21,11 +23,12 @@ import org.springframework.web.client.RestTemplate;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.time.Instant;
-import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Service
@@ -35,7 +38,6 @@ public class GeminiServiceImpl implements GeminiService {
     private String geminiApiKey;
     private String geminiUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=";
     private final JobApplicationRepository jobApplicationRepository;
-    private final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     public GeminiServiceImpl(final JobApplicationRepository jobApplicationRepository) {
         this.jobApplicationRepository = jobApplicationRepository;
@@ -59,36 +61,45 @@ public class GeminiServiceImpl implements GeminiService {
         return null;
     }
     private String getGeminiCompletions(String base64) {
-        String url = geminiUrl + geminiApiKey;
-        GeminiMultimodalRequest geminiMultimodalRequest = new GeminiMultimodalRequest();
-        GeminiMultimodalRequest.Content content = new GeminiMultimodalRequest.Content();
-        GeminiMultimodalRequest.Content.Part part1 = new GeminiMultimodalRequest.Content.Part();
-        part1.setText("You are an expert job application tracker. Extract these information: Company, Job Position in json format");
-        GeminiMultimodalRequest.Content.Part part2 = new GeminiMultimodalRequest.Content.Part();
+        try {
+            String url = geminiUrl + geminiApiKey;
+            GeminiMultimodalRequest geminiMultimodalRequest = new GeminiMultimodalRequest();
+            GeminiMultimodalRequest.Content content = new GeminiMultimodalRequest.Content();
+            GeminiMultimodalRequest.Content.Part part1 = new GeminiMultimodalRequest.Content.Part();
+            Resource resource = new ClassPathResource("prompt/geminiPrompt.txt");
+            String prompt = new String(Files.readAllBytes(resource.getFile().toPath()), StandardCharsets.UTF_8);
+            part1.setText(prompt);
+            LOGGER.info("Prompt: " + prompt);
+            GeminiMultimodalRequest.Content.Part part2 = new GeminiMultimodalRequest.Content.Part();
 
-        GeminiMultimodalRequest.Content.Part.InlineData inlineData = new GeminiMultimodalRequest.Content.Part.InlineData();
-        inlineData.setData(base64);
-        inlineData.setMimeType("image/png");
-        part2.setInlineData(inlineData);
-        List<GeminiMultimodalRequest.Content.Part> parts = new ArrayList<>();
-        parts.add(part1);
-        parts.add(part2);
+            GeminiMultimodalRequest.Content.Part.InlineData inlineData = new GeminiMultimodalRequest.Content.Part.InlineData();
+            inlineData.setData(base64);
+            inlineData.setMimeType("image/png");
+            part2.setInlineData(inlineData);
+            List<GeminiMultimodalRequest.Content.Part> parts = new ArrayList<>();
+            parts.add(part1);
+            parts.add(part2);
 
-        content.setParts(parts);
-        List<GeminiMultimodalRequest.Content> contents = new ArrayList<>();
-        contents.add(content);
-        geminiMultimodalRequest.setContents(contents);
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
+            content.setParts(parts);
+            List<GeminiMultimodalRequest.Content> contents = new ArrayList<>();
+            contents.add(content);
+            geminiMultimodalRequest.setContents(contents);
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
 //        headers.setBearerAuth(geminiApiKey);
-        HttpEntity<GeminiMultimodalRequest> entity = new HttpEntity<>(geminiMultimodalRequest, headers);
+            HttpEntity<GeminiMultimodalRequest> entity = new HttpEntity<>(geminiMultimodalRequest, headers);
 
-        RestTemplate restTemplate = new RestTemplate();
-        ResponseEntity<GeminiMultimodalResponse> response = restTemplate.postForEntity(url, entity, GeminiMultimodalResponse.class);
+            RestTemplate restTemplate = new RestTemplate();
+            ResponseEntity<GeminiMultimodalResponse> response = restTemplate.postForEntity(url, entity, GeminiMultimodalResponse.class);
 //        System.out.println(response.getBody());
-        String geminiResponse = response.getBody().getCandidates().get(0).getContent().getParts().get(0).getText();
+            String geminiResponse = response.getBody().getCandidates().get(0).getContent().getParts().get(0).getText();
 
-        return geminiResponse;
+            LOGGER.info("Gemini response: " + geminiResponse);
+            return geminiResponse;
+        } catch (IOException e) {
+            LOGGER.error("Error parsing gemini prompt file: "  + e.getMessage());
+            return null;
+        }
 
     }
 
@@ -99,17 +110,17 @@ public class GeminiServiceImpl implements GeminiService {
         cleaned = cleaned.trim();
         ObjectMapper objectMapper = new ObjectMapper();
         try {
-            Map<String, String> application = objectMapper.readValue(cleaned, new TypeReference<>() {});
+            List<Map<String,String>> applications = objectMapper.readValue(cleaned, new TypeReference<>() {});
             JobApplication jobApplication = new JobApplication();
 
-            for (Map.Entry<String, String> entry : application.entrySet()) {
-                if ("Company".equals(entry.getKey())) jobApplication.setCompany(entry.getValue());
-                if ("Job Position".equals(entry.getKey())) jobApplication.setJobPosition(entry.getValue());
-                String formattedDate = LocalDate.now().format(formatter);
-                jobApplication.setDateApplied(formattedDate);
+            for (Map<String,String> entry : applications) {
+                JobApplication jobApp = new JobApplication();
+                jobApp.setCompany(entry.get("Company"));
+                jobApp.setJobPosition(entry.get("Job Title"));
+                jobApp.setDateApplied(entry.get("Date Applied"));
+                jobApplicationRepository.save(jobApp);
 
             }
-            jobApplicationRepository.save(jobApplication);
             return jobApplication;
         } catch (JsonMappingException e) {
             log.error("Error parsing JSON: " + e.getMessage());

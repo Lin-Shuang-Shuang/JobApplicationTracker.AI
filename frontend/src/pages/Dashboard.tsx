@@ -92,7 +92,7 @@ const Dashboard = () => {
     return (
         <>
         <Navbar></Navbar>
-        <div className="pt-20 fixed top-10 right-30 left-30 overflow-x-auto shadow-md sm:rounded-lg">
+        <div className="pt-20 top-10 right-30 left-30 overflow-x-auto shadow-md sm:rounded-lg">
             <div className="relative overflow-x-auto shadow-md sm:rounded-lg">
                 <div className="p-4 flex justify-between items-center">
                     <div className="flex items-center">
