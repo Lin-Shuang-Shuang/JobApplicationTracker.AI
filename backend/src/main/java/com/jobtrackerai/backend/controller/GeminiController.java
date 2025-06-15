@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/gemini")
 public class GeminiController {
-    @Value("${GEMINI_API_KEY}")
+    @Value("${gemini.api.key}")
     private String geminiApiKey;
 
     private final GeminiService geminiService;
